@@ -1,11 +1,16 @@
+const sequelize = require('../../config/connection');
 const router = require('express').Router();
+const { json } = require('body-parser');
 const { read } = require('fs');
-const {Post, USER, User} = require('../../models');
+const {Post, User, Vote} = require('../../models');
 
 //get all users
 
 router.get('/', (req, res) => {
     Post.findAll({
+        where: { 
+            id:req.params.id
+        },
         attributes: ['id', 'post_url', 'title', 'created_at'],
         order: [['created_at', 'DESC']],
         include: [
@@ -15,7 +20,13 @@ router.get('/', (req, res) => {
             }
         ]
     })
-    .then(dbPostData => res.json(dbPostData))
+    .then(dbPostData => {
+        if(!dbPostData){
+            res.status(404).json({message: 'No post found with this id'});
+            return;
+        }
+        res.json(dbPostData);
+    })
     .catch(err => {
         console.log(err);
         res.status(500).json(err);
@@ -27,7 +38,14 @@ router.get('/:id', (req, res) => {
         where: {
         id: req.params.id
         },
-        attributes: ['id', 'post_url', 'title', 'created_at'],
+        attributes: [
+                     'id', 
+                     'post_url', 
+                     'title', 
+                     'created_at', 
+                     [sequelize.literal('(SELECT COUNT(*) FROM vote WHERE post.id = vote.post_id)'), 
+                     'vote_count']
+                    ],
         include: [ 
             {
                 model: User,
@@ -60,6 +78,16 @@ router.post('/', (req,res) => {
         console.log(err);
         res.status(500).json(err);
       });
+});
+// PUT /api/posts/upvote
+
+router.put('/upvote', (req,res) => {
+    Post.upvote(req.body, { Vote } )
+    .then(dbPostData => res.json(dbPostData))
+    .catch(err => {
+        console.log(err);
+        res.status(400).json(err);
+    });
 });
 
 router.put('/:id', (req,res) => {
